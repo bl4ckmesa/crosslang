@@ -12,6 +12,7 @@ gridsize = 5
 wordcount = 10
 filename = sys.argv[1]
 wordlist = [line.rstrip('\n').upper().split(',') for line in open(filename, 'r').readlines()]
+finallist = []
 
 def print_cube(wordgrid):
 	cube = ""
@@ -52,7 +53,23 @@ def get_words(wordlist):
 # Analyzes grid and returns a random adjacent square
 def free_adjacent(wordgrid,next_letter,prev_letter = []):
 	# Get grid adjacent to prev_letter
-	prev_c, prev_p = prev_letter
+	if len(prev_letter) > 0:
+		prev_c, prev_p = prev_letter
+	else:
+		# We're on a new word; just pick a random available one
+		empty_squares = []
+		for square in wordgrid:
+			for key in square:
+				if square[key] == "-" or square[key] == next_letter:
+					empty_squares.append(key)
+		if len(empty_squares) > 0:
+			print "Picking randomly from: ", empty_squares
+			return random.choice(empty_squares)
+		else:
+			print "Couldn't find any space in: ", empty_squares
+			return None
+
+	# Get adjacent square values
 	upleft = prev_p + gridsize - 1
 	up = prev_p + gridsize
 	upright = prev_p + gridsize + 1
@@ -61,26 +78,53 @@ def free_adjacent(wordgrid,next_letter,prev_letter = []):
 	downleft = prev_p - gridsize - 1
 	down = prev_p - gridsize
 	downright = prev_p - gridsize + 1
-	adjacent = [upleft,up,upright,left,right,downleft,down,downright]
-	available = []
-	for square in adjacent:
-		if 0 <= square <= gridsize ** 2:
-			available.append(square)
 
-	# See if next_letter is already in a grid there
-	for square in available:
-		print wordgrid[square]
+	# Now only use values that are valid
+	# On the left side
+	if prev_p % gridsize == 1:
+		adjacent = [up,upright,right,down,downright]
+	# On the right side
+	elif prev_p % gridsize == 0:
+		adjacent = [upleft,up,left,downleft,down]
+	# Somewhere in the middle
+	else:
+		adjacent = [upleft,up,upright,left,right,downleft,down,downright]
+	# Remove top or bottom if they are out of bounds
+	adj = []
+	print "Adjacent: ", adjacent
+	for square in adjacent:
+		# Make sure the square is valid for the grid
+		if 0 <= square <= gridsize ** 2:
+			adj.append(square)
+	adjacent = adj
+
+	print "Prev_letter was: ", prev_letter
+	print "Adjacent: ", adjacent
+	# See if next_letter is already in a grid there; if it is, use it.
+	for square in adjacent:
+		for key in wordgrid[square - 1]:
+			if wordgrid[key - 1][key] == next_letter:
+				print "%s was already at %s" % (next_letter, key)
+				return key
 
 	# If not, pick randomly among them.
+	for square in adjacent:
+		for key in wordgrid[square - 1]:
+			if wordgrid[key - 1][key] == "-":
+				print "Found life in grid ", key
+				return key
 
-	print ""
+	print "Could not find a place for letter %s close to %s" % (next_letter, prev_c)
+	return None
+		
+
 
 def trace_words(_words,gridsize):
 	# Try to trace all the letters of all the words a grid
 	common_letters = [ 'E', 'S', 'N', 'T', 'A', 'O' ]
 	grid = []
 	for n in range(1, (gridsize ** 2) + 1):
-		grid.append({ n: '' })
+		grid.append({ n: '-' })
 	inner_grid = []
 	for square in grid:
 		sq = int(square.keys()[0])
@@ -89,23 +133,29 @@ def trace_words(_words,gridsize):
 			inner_grid.append(sq)
 	prev_letter = [] # Will be letter and position in grid (i.e., [ 'a', 5 ]
 	for word in _words:
+		print "\nWord:", word
 		wordgrid = list(grid)
 		# Go letter by letter.
 		for c in word[0]:
 			# Start somewhere on the grid
 			if not prev_letter:
 				# First time letter
-				print "First word:", word
-				coord = random.choice(wordgrid).keys()[0]
+				coord = free_adjacent(wordgrid,c)
 			else:
 				# Everything else
-				# coord = free_adjacent(wordgrid,c,prev_letter)
 				coord = free_adjacent(wordgrid,c,prev_letter)
+			if coord == None:
+				print "Couldn't fit word in, giving up."
+				break
 			prev_letter = [ c, coord ]
 			wordgrid[coord - 1][coord] = c
+			print "> %s <" % c
+			print_cube(wordgrid)
+		print "> %s <" % word[0]
+		print_cube(wordgrid)
 		grid = wordgrid
-		print "\n\n> %s <" % c
-		print_cube(grid)
+		finallist.append(word)
+		prev_letter = []
 	return grid
 
 words = get_words(wordlist)
@@ -114,5 +164,7 @@ wordgrid = trace_words(words['words'],gridsize)
 
 print_cube(wordgrid)
 
-for word in words['words']:
-	print word[0]
+#for word in words['words']:
+#	print word[0]
+for word in finallist:
+	print word
