@@ -14,3 +14,16 @@ lone,diaw
 sad,songsay
 bad,yeah
 mad,bah
+hungry,hiuw
+ugly,naagiad
+glad,yindii
+grad,puupae
+grade,garaede
+time,weelaa
+clock,naligaa
+hand,mue
+eyes,taa
+hair,phom
+ear,huu
+tear,ronghai
+cry,ronghai
