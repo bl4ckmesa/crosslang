@@ -169,12 +169,18 @@ def trace_words(_words,gridsize):
 		prev_letter = []
 	return grid
 
-alphabet = [ 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z' ]
 common_letters = [ 'E', 'S', 'N', 'T', 'A', 'O' ]
 words = get_words(wordlist)
 wordgrid = trace_words(words['words'],gridsize)
 
 # Fill in the last few unused squares with a random letter
+# alphabet = [ 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z' ]
+# Generate alphabet from word list
+alphabet = ""
+for word in words['words']:
+	alphabet = "".join(set(word[0]+alphabet))
+
+print alphabet
 for square in wordgrid:
 	for key in square:
 		if square[key] == "-":
