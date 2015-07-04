@@ -4,6 +4,8 @@ import os,sys
 import random
 import textwrap
 import logging
+import re
+import copy
 from logging import debug
 from logging import info
 
@@ -11,12 +13,12 @@ if len(sys.argv) < 2:
 	print "Insufficient arguments."
 	sys.exit(1)
 
-logging.basicConfig(stream=sys.stderr, level=logging.INFO)
+logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
-gridsize = 5
-wordcount = 5
+gridsize = 4
+wordcount = 10
 filename = sys.argv[1]
-wordlist = [line.rstrip('\n').upper().split(',') for line in open(filename, 'r').readlines()]
+wordlist = [ re.sub(r'[^a-zA-Z,]','',line.rstrip('\n').upper()).split(',',1) for line in open(filename, 'r').readlines() ]
 finallist = []
 
 def print_cube(wordgrid):
@@ -36,7 +38,7 @@ def get_words(wordlist):
 	words = { 'chars': {}, 'words': [] }
 	random.shuffle(wordlist)
 	for word, meaning in wordlist:
-		if len(words['words']) == wordcount: break
+		if len(words['words']) == wordcount * 100: break
 		words['words'].append([ word, meaning ])
 		# Get stats for characters
 		for c in word:
@@ -57,10 +59,10 @@ def get_words(wordlist):
 	return words
 
 # Analyzes grid and returns a random adjacent square
-def free_adjacent(wordgrid,next_letter,prev_letter = []):
-	# Get grid adjacent to prev_letter
-	if len(prev_letter) > 0:
-		prev_c, prev_p = prev_letter
+def free_adjacent(wordgrid,next_letter,prev_letters = []):
+	# Get grid adjacent to prev_letters
+	if len(prev_letters) > 0:
+		prev_c, prev_p = prev_letters[-1]
 	else:
 		# We're on a new word; just pick a random available one
 		empty_squares = []
@@ -104,14 +106,18 @@ def free_adjacent(wordgrid,next_letter,prev_letter = []):
 			adj.append(square)
 	adjacent = adj
 
-	debug("Prev_letter was: %s" % prev_letter)
+	debug("Prev_letter was: %s" % prev_letters[-1])
 	debug("Adjacent: %s" % str(adjacent))
 	# See if next_letter is already in a grid there; if it is, use it.
+	current_grid_coords = (x[1] for x in prev_letters)
 	for square in adjacent:
 		for key in wordgrid[square - 1]:
 			if wordgrid[key - 1][key] == next_letter:
-				debug("%s was already at %s" % (next_letter, key))
-				return key
+				if key in current_grid_coords:
+					debug("Grid %s has a %s but is already part of the word." % (key,next_letter))
+				else:
+					debug("%s was already at %s" % (next_letter, key))
+					return key
 
 	# If not, pick randomly among them.
 	for square in adjacent:
@@ -135,38 +141,54 @@ def trace_words(_words,gridsize):
 		# Add inner grid numbers
 		if gridsize < sq < ((gridsize ** 2) - gridsize) and not sq % gridsize in [ 0, 1, gridsize ]:
 			inner_grid.append(sq)
-	prev_letter = [] # Will be letter and position in grid (i.e., [ 'a', 5 ]
+	prev_letters = [] # Will be letter and position in grid (i.e., [ 'a', 5 ]
 	for word in _words:
-		skipword = False
-		debug("\nWord: %s", str(word))
-		wordgrid = list(grid)
-		# Go letter by letter.
-		for c in word[0]:
-			# Start somewhere on the grid
-			if not prev_letter:
-				# First time letter
-				coord = free_adjacent(wordgrid,c)
+		coord = None
+		retries = 0
+		retries_max = 100
+		while coord == None and retries < retries_max:
+			skipword = False
+			subword = []
+			debug("\nWord: %s", str(word))
+			wordgrid = copy.deepcopy(grid)
+			# Go letter by letter.
+			for c in word[0]:
+				# Start somewhere on the grid
+				if not prev_letters:
+					# First time letter
+					coord = free_adjacent(wordgrid,c)
+				else:
+					# Everything else
+					coord = free_adjacent(wordgrid,c,prev_letters)
+				if coord == None:
+					skipword = True
+					break
+				prev_letters.append([ c, coord ])
+				wordgrid[coord - 1][coord] = c
+				debug("> %s <" % c)
+				#print_cube(wordgrid)
+
+			debug("Original cube pre %s looks like this:" % word)
+			#print_cube(grid)
+
+			if skipword:
+				debug("Couldn't fit word in... Tried %s times." % retries)
+				wordgrid = grid
+				debug("> %s < - Failed; reverted wordgrid" % word[0])
+				#print_cube(grid)
+				retries += 1
+				if retries == retries_max:
+					debug("Couldn't fit word %s in... Tried %s times." % (word,retries))
 			else:
-				# Everything else
-				coord = free_adjacent(wordgrid,c,prev_letter)
-			if coord == None:
-				skipword = True
-				break
-			prev_letter = [ c, coord ]
-			wordgrid[coord - 1][coord] = c
-			debug("> %s <" % c)
-			#print_cube(wordgrid)
-		debug("> %s <" % word[0])
-		#print_cube(wordgrid)
-		grid = wordgrid
-		if skipword:
-			debug("Couldn't fit word in, giving up.")
-		else:
-			finallist.append(word)
-			# Break out now if the wordlist is at the right length
-			if len(finallist) >= wordcount:
-				return grid
-		prev_letter = []
+				finallist.append(word)
+				grid = wordgrid
+				info("Successfully fit word %s in... Tried %s times." % (word,retries))
+				debug("> %s < - Completed Successfully" % word[0])
+				#print_cube(grid)
+				# Break out now if the wordlist is at the right length
+				if len(finallist) >= wordcount:
+					return grid
+			prev_letters = []
 	return grid
 
 common_letters = [ 'E', 'S', 'N', 'T', 'A', 'O' ]
@@ -180,7 +202,6 @@ alphabet = ""
 for word in words['words']:
 	alphabet = "".join(set(word[0]+alphabet))
 
-print alphabet
 for square in wordgrid:
 	for key in square:
 		if square[key] == "-":
